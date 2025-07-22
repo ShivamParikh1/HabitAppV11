@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from "react";
-import { Todo } from "@/entities/Todo";
-import { User } from "@/entities/User";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,13 +32,11 @@ import {
   Filter,
   SortAsc,
   SortDesc,
-  ArrowLeft, // Added for navigation back button
-  Info // Added for the info card
+  ArrowLeft,
+  Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { Link } from "react-router-dom"; // Assuming react-router-dom for Link component
-import { createPageUrl } from "@/utils"; // Import createPageUrl from utils
 
 const categories = [
   "Work", "Personal", "Health", "Finance", "Learning", "Social", "Shopping", "Other"
@@ -51,9 +49,9 @@ const priorities = [
 ];
 
 export default function TodoList() {
-  const [todos, setTodos] = useState([]);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { state, dispatch } = useApp();
+  const { todos } = state;
+  
   const [editingTodo, setEditingTodo] = useState(null);
   const [showDialog, setShowDialog] = useState(false);
   const [filters, setFilters] = useState({
@@ -71,68 +69,56 @@ export default function TodoList() {
     due_date: ""
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const [userData, todoData] = await Promise.all([
-        User.me(),
-        Todo.filter({ created_by: (await User.me()).email })
-      ]);
-      setUser(userData);
-      setTodos(todoData);
-    } catch (error) {
-      console.error("Error loading data:", error);
+  const handleCreateTodo = () => {
+    if (!newTodo.title.trim()) {
+      alert("Title is required");
+      return;
     }
-    setLoading(false);
+
+    dispatch({
+      type: 'ADD_TODO',
+      payload: newTodo
+    });
+
+    setNewTodo({
+      title: "",
+      description: "",
+      category: "",
+      priority: "medium",
+      due_date: ""
+    });
+    setShowDialog(false);
   };
 
-  const handleCreateTodo = async () => {
-    try {
-      await Todo.create(newTodo);
-      setNewTodo({
-        title: "",
-        description: "",
-        category: "",
-        priority: "medium",
-        due_date: ""
+  const handleUpdateTodo = (id, updates) => {
+    dispatch({
+      type: 'UPDATE_TODO',
+      payload: { id, updates }
+    });
+  };
+
+  const handleDeleteTodo = (id) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      dispatch({
+        type: 'DELETE_TODO',
+        payload: { id }
       });
-      setShowDialog(false);
-      loadData();
-    } catch (error) {
-      console.error("Error creating todo:", error);
     }
   };
 
-  const handleUpdateTodo = async (id, updates) => {
-    try {
-      await Todo.update(id, updates);
-      loadData();
-    } catch (error) {
-      console.error("Error updating todo:", error);
+  const handleEditTodo = () => {
+    if (!editingTodo.title.trim()) {
+      alert("Title is required");
+      return;
     }
-  };
 
-  const handleDeleteTodo = async (id) => {
-    try {
-      await Todo.delete(id);
-      loadData();
-    } catch (error) {
-      console.error("Error deleting todo:", error);
-    }
-  };
+    dispatch({
+      type: 'UPDATE_TODO',
+      payload: { id: editingTodo.id, updates: editingTodo }
+    });
 
-  const handleEditTodo = async () => {
-    try {
-      await Todo.update(editingTodo.id, editingTodo);
-      setEditingTodo(null);
-      setShowDialog(false);
-      loadData();
-    } catch (error) {
-      console.error("Error updating todo:", error);
-    }
+    setEditingTodo(null);
+    setShowDialog(false);
   };
 
   const filteredAndSortedTodos = todos
@@ -174,14 +160,6 @@ export default function TodoList() {
     incomplete: todos.filter(t => !t.completed).length,
     overdue: todos.filter(t => !t.completed && t.due_date && new Date(t.due_date) < new Date()).length
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
